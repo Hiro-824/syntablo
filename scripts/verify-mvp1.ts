@@ -14,6 +14,7 @@ const summary = {
     forms: block.formLabels,
     slots: block.slots.map((slot) => slot.kind),
     slotSides: block.slots.map((slot) => `${slot.kind}:${slot.side}`),
+    position: { x: block.x, y: block.y },
     head: block.headType,
     verbForm: block.verbForm ?? null,
   })),

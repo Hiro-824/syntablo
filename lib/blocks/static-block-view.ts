@@ -12,6 +12,8 @@ export interface StaticBlockView {
   selectedLabel: string;
   formLabels: string[];
   hasDropdown: boolean;
+  x: number;
+  y: number;
   slots: StaticBlockSlotView[];
   headType?: string;
   verbForm?: string;
@@ -53,6 +55,8 @@ export const createStaticBlockViews = (
       selectedLabel: selectedForm.label,
       formLabels: block.forms.map((form) => form.label),
       hasDropdown,
+      x: 180,
+      y: 140 + index * 132,
       slots,
       headType: state.headType,
       verbForm: state.verbForm,

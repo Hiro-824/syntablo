@@ -42,3 +42,4 @@ next-env.d.ts
 
 # local verification output
 .mvp0-check/
+.mvp1-check/

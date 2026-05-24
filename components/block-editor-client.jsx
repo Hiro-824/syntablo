@@ -3,21 +3,21 @@
 import { useEffect, useMemo, useRef } from "react";
 import { HpsgAdapter } from "@/lib/grammar/hpsg-adapter";
 import { mvpLexemeSources } from "@/lib/grammar/sample-lexemes";
-import { createEditorBlockViews } from "@/lib/blocks/editor-block-view";
+import { createEditorModel } from "@/lib/blocks/editor-model";
 import { renderEditorCanvas } from "@/lib/d3-block-ui/editor-canvas-renderer";
 
 export default function BlockEditorClient() {
   const svgRef = useRef(null);
-  const blocks = useMemo(() => {
+  const model = useMemo(() => {
     const adapter = new HpsgAdapter();
     const definitions = adapter.createBlockDefinitions(mvpLexemeSources);
-    return createEditorBlockViews(adapter, definitions);
+    return createEditorModel(adapter, definitions);
   }, []);
 
   useEffect(() => {
     if (!svgRef.current) return;
-    renderEditorCanvas(svgRef.current, blocks);
-  }, [blocks]);
+    renderEditorCanvas(svgRef.current, model);
+  }, [model]);
 
   return (
     <main className="min-h-dvh overflow-hidden bg-[#f7f8fa]">

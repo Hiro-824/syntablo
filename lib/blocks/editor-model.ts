@@ -114,6 +114,14 @@ export const applySelectedForm = (block: EditorBlock) => {
   const selectedForm = block.forms[block.selectedFormIndex];
   if (!selectedForm) return;
 
+  const previousLeftAttachments = block.children.filter(
+    (child): child is Extract<EditorBlockChild, { type: "attachment" }> =>
+      child.type === "attachment" && child.side === "left",
+  );
+  const previousRightAttachments = block.children.filter(
+    (child): child is Extract<EditorBlockChild, { type: "attachment" }> =>
+      child.type === "attachment" && child.side === "right",
+  );
   const previousPlaceholderContents = new Map(
     block.children
       .filter(
@@ -126,6 +134,7 @@ export const applySelectedForm = (block: EditorBlock) => {
   );
 
   const children: EditorBlockChild[] = [];
+  children.push(...previousLeftAttachments);
 
   for (const slot of selectedForm.slots.filter((item) => item.side === "left")) {
     children.push({
@@ -162,6 +171,8 @@ export const applySelectedForm = (block: EditorBlock) => {
     });
   }
 
+  children.push(...previousRightAttachments);
+
   block.children = children;
   block.headType = selectedForm.headType;
   block.verbForm = selectedForm.verbForm;
@@ -171,6 +182,41 @@ export const selectBlockForm = (block: EditorBlock, formIndex: number) => {
   if (!block.forms[formIndex]) return;
   block.selectedFormIndex = formIndex;
   applySelectedForm(block);
+};
+
+export const selectBlockFormInModel = (
+  model: EditorModel,
+  blockId: string,
+  formIndex: number,
+): boolean => {
+  const foundResult = findBlock(model, blockId);
+  const block = foundResult.foundBlock;
+  if (!block || !block.forms[formIndex]) return false;
+
+  const targetForm = block.forms[formIndex];
+  const nextPlaceholderIds = new Set(targetForm.slots.map((slot) => slot.id));
+  const ejectedBlocks = block.children.flatMap((child) => {
+    if (child.type !== "placeholder" || !child.content || nextPlaceholderIds.has(child.id)) {
+      return [];
+    }
+
+    return [{
+      block: child.content,
+      x: foundResult.absoluteX + child.content.x + 16,
+      y: foundResult.absoluteY + child.content.y + 16,
+    }];
+  });
+
+  block.selectedFormIndex = formIndex;
+  applySelectedForm(block);
+
+  for (const ejected of ejectedBlocks) {
+    ejected.block.x = ejected.x;
+    ejected.block.y = ejected.y;
+    model.blocks.push(ejected.block);
+  }
+
+  return true;
 };
 
 export const findTopLevelBlock = (model: EditorModel, blockId: string) =>

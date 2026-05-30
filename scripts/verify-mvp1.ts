@@ -3,6 +3,7 @@ import {
   createEditorModel,
   insertBlock,
   moveBlockToTopLevel,
+  selectBlockFormInModel,
 } from "../lib/blocks/editor-model.js";
 import { HpsgAdapter } from "../lib/grammar/hpsg-adapter.js";
 import { mvpLexemeSources } from "../lib/grammar/sample-lexemes.js";
@@ -36,6 +37,19 @@ const detachedFromPlaceholder = moveBlockToTopLevel(detachInsertModel, girlId);
 const detachAttachModel = createEditorModel(adapter, definitions);
 attachBlock(detachAttachModel, maryId, johnId, "right");
 const detachedFromAttachment = moveBlockToTopLevel(detachAttachModel, maryId);
+
+const dropdownChangeModel = createEditorModel(adapter, definitions);
+const dropdownSeeBlock = dropdownChangeModel.blocks.find((block) => block.id === seeId);
+const dropdownComplementIndex =
+  dropdownSeeBlock?.children.findIndex((child) => child.type === "placeholder" && child.slotKind === "complement") ?? -1;
+const presentParticipleIndex =
+  dropdownSeeBlock?.forms.findIndex((form) => form.kind === "presentParticiple") ?? -1;
+if (dropdownComplementIndex >= 0) {
+  insertBlock(dropdownChangeModel, girlId, seeId, dropdownComplementIndex);
+}
+const dropdownChanged = presentParticipleIndex >= 0
+  ? selectBlockFormInModel(dropdownChangeModel, seeId, presentParticipleIndex)
+  : false;
 
 const summary = {
   blockCount: model.blocks.length,
@@ -110,6 +124,22 @@ const summary = {
       id: child.id,
       type: child.type,
       side: "side" in child ? child.side : null,
+      contentId:
+        (child.type === "placeholder" || child.type === "attachment") && child.content
+          ? child.content.id
+          : null,
+      })),
+  },
+  dropdownModelChangeCheck: {
+    input: "after inserting girl into see, change see dropdown from sees to seeing",
+    committed: dropdownChanged,
+    topLevelIds: dropdownChangeModel.blocks.map((block) => block.id),
+    seeSelected: dropdownChangeModel.blocks.find((block) => block.id === seeId)?.forms[
+      dropdownChangeModel.blocks.find((block) => block.id === seeId)?.selectedFormIndex ?? 0
+    ]?.label,
+    seeChildren: dropdownChangeModel.blocks.find((block) => block.id === seeId)?.children.map((child) => ({
+      id: child.id,
+      type: child.type,
       contentId:
         (child.type === "placeholder" || child.type === "attachment") && child.content
           ? child.content.id

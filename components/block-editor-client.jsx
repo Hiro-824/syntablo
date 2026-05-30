@@ -20,7 +20,7 @@ export default function BlockEditorClient() {
 
   useEffect(() => {
     if (!svgRef.current) return;
-    renderEditorCanvas(svgRef.current, model, { sidebarDefinitions });
+    return renderEditorCanvas(svgRef.current, model, { sidebarDefinitions });
   }, [model, sidebarDefinitions]);
 
   return (

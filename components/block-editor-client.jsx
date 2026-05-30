@@ -11,13 +11,17 @@ export default function BlockEditorClient() {
   const model = useMemo(() => {
     const adapter = new HpsgAdapter();
     const definitions = adapter.createBlockDefinitions(mvpLexemeSources);
-    return createEditorModel(adapter, definitions);
+    return createEditorModel(adapter, definitions, { includeInitialBlocks: false });
   }, []);
+  const sidebarDefinitions = useMemo(() => {
+    const adapter = model.adapter;
+    return adapter.createBlockDefinitions(mvpLexemeSources);
+  }, [model]);
 
   useEffect(() => {
     if (!svgRef.current) return;
-    renderEditorCanvas(svgRef.current, model);
-  }, [model]);
+    renderEditorCanvas(svgRef.current, model, { sidebarDefinitions });
+  }, [model, sidebarDefinitions]);
 
   return (
     <main className="min-h-dvh overflow-hidden bg-[#f7f8fa]">

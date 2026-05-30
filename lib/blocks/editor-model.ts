@@ -38,6 +38,18 @@ export interface EditorBlock {
 export interface EditorModel {
   adapter: HpsgAdapter;
   blocks: EditorBlock[];
+  nextBlockOrdinal: number;
+}
+
+export interface CreateEditorModelOptions {
+  includeInitialBlocks?: boolean;
+}
+
+export interface CreateEditorBlockOptions {
+  id?: string;
+  x?: number;
+  y?: number;
+  selectedFormIndex?: number;
 }
 
 export interface EditorBlockSearchResult {
@@ -52,9 +64,13 @@ export interface EditorBlockSearchResult {
 export const createEditorModel = (
   adapter: HpsgAdapter,
   definitions: WordBlockDefinition[],
+  options: CreateEditorModelOptions = {},
 ): EditorModel => ({
   adapter,
-  blocks: createInitialEditorBlocks(adapter, definitions),
+  blocks: options.includeInitialBlocks === false
+    ? []
+    : createInitialEditorBlocks(adapter, definitions),
+  nextBlockOrdinal: 0,
 });
 
 export const createInitialEditorBlocks = (
@@ -68,51 +84,77 @@ export const createInitialEditorBlocks = (
 
   return definitions.map((definition, index) => {
     const preferredKind = preferredFormKinds.get(definition.label);
-    const selectedFormIndex = Math.max(
-      0,
-      definition.forms.findIndex((form) => form.kind === preferredKind),
-    );
-    const forms = definition.forms.map((form) => {
-      const state = adapter.createStateFromFeature(form.feature);
-      const leftSlots = state.slots.filter((slot) => slot.kind === "specifier");
-      const rightSlots = state.slots.filter((slot) => slot.kind === "complement");
-      const slots = [
-        ...leftSlots.map((slot) => ({
-          id: slot.id,
-          kind: slot.kind,
-          side: "left" as const,
-        })),
-        ...rightSlots.map((slot) => ({
-          id: slot.id,
-          kind: slot.kind,
-          side: "right" as const,
-        })),
-      ];
+    const preferredFormIndex = definition.forms.findIndex((form) => form.kind === preferredKind);
 
-      return {
-        label: form.label,
-        kind: form.kind,
-        feature: form.feature,
-        slots,
-        headType: state.headType,
-        verbForm: state.verbForm,
-      };
-    });
-
-    const block: EditorBlock = {
+    return createEditorBlock(adapter, definition, {
       id: definition.id,
-      label: definition.label,
       x: 180,
       y: 140 + index * 132,
-      isRound: false,
-      selectedFormIndex,
-      forms,
-      children: [],
-    };
-
-    applySelectedForm(block);
-    return block;
+      selectedFormIndex: Math.max(0, preferredFormIndex),
+    });
   });
+};
+
+export const createEditorBlock = (
+  adapter: HpsgAdapter,
+  definition: WordBlockDefinition,
+  options: CreateEditorBlockOptions = {},
+): EditorBlock => {
+  const forms = definition.forms.map((form) => {
+    const state = adapter.createStateFromFeature(form.feature);
+    const leftSlots = state.slots.filter((slot) => slot.kind === "specifier");
+    const rightSlots = state.slots.filter((slot) => slot.kind === "complement");
+    const slots = [
+      ...leftSlots.map((slot) => ({
+        id: slot.id,
+        kind: slot.kind,
+        side: "left" as const,
+      })),
+      ...rightSlots.map((slot) => ({
+        id: slot.id,
+        kind: slot.kind,
+        side: "right" as const,
+      })),
+    ];
+
+    return {
+      label: form.label,
+      kind: form.kind,
+      feature: form.feature,
+      slots,
+      headType: state.headType,
+      verbForm: state.verbForm,
+    };
+  });
+
+  const block: EditorBlock = {
+    id: options.id ?? definition.id,
+    label: definition.label,
+    x: options.x ?? 0,
+    y: options.y ?? 0,
+    isRound: false,
+    selectedFormIndex: options.selectedFormIndex ?? 0,
+    forms,
+    children: [],
+  };
+
+  applySelectedForm(block);
+  return block;
+};
+
+export const createEditorBlockInstance = (
+  model: EditorModel,
+  definition: WordBlockDefinition,
+  x = 0,
+  y = 0,
+): EditorBlock => {
+  const block = createEditorBlock(model.adapter, definition, {
+    id: `${definition.id}-instance-${model.nextBlockOrdinal}`,
+    x,
+    y,
+  });
+  model.nextBlockOrdinal += 1;
+  return block;
 };
 
 export const applySelectedForm = (block: EditorBlock) => {

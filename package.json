@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "verify:mvp0": "tsc --target ES2022 --module ES2022 --moduleResolution bundler --skipLibCheck --esModuleInterop --outDir .mvp0-check lib/grammar/hpsg-adapter.ts scripts/verify-mvp0.ts && node -e \"const fs=require('fs');fs.mkdirSync('.mvp0-check',{recursive:true});fs.writeFileSync('.mvp0-check/package.json', JSON.stringify({type:'module'}))\" && node .mvp0-check/scripts/verify-mvp0.js",
-    "verify:mvp1": "tsc --target ES2022 --module ES2022 --moduleResolution bundler --skipLibCheck --esModuleInterop --outDir .mvp1-check lib/grammar/hpsg-adapter.ts lib/grammar/sample-lexemes.ts lib/blocks/editor-model.ts scripts/verify-mvp1.ts && node -e \"const fs=require('fs');fs.mkdirSync('.mvp1-check',{recursive:true});fs.writeFileSync('.mvp1-check/package.json', JSON.stringify({type:'module'}))\" && node .mvp1-check/scripts/verify-mvp1.js"
+    "verify:mvp1": "tsc --target ES2022 --module ES2022 --moduleResolution bundler --skipLibCheck --esModuleInterop --outDir .mvp1-check lib/grammar/hpsg-adapter.ts lib/grammar/sample-lexemes.ts lib/grammar/block-validation.ts lib/blocks/editor-model.ts scripts/verify-mvp1.ts && node -e \"const fs=require('fs');fs.mkdirSync('.mvp1-check',{recursive:true});fs.writeFileSync('.mvp1-check/package.json', JSON.stringify({type:'module'}))\" && node .mvp1-check/scripts/verify-mvp1.js"
   },
   "dependencies": {
     "d3": "^7.9.0",

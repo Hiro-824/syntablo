@@ -5,6 +5,11 @@ import {
   moveBlockToTopLevel,
   selectBlockFormInModel,
 } from "../lib/blocks/editor-model.js";
+import {
+  canAttachBlock,
+  canInsertBlockIntoPlaceholder,
+  canSelectBlockForm,
+} from "../lib/grammar/block-validation.js";
 import { HpsgAdapter } from "../lib/grammar/hpsg-adapter.js";
 import { mvpLexemeSources } from "../lib/grammar/sample-lexemes.js";
 
@@ -50,6 +55,24 @@ if (dropdownComplementIndex >= 0) {
 const dropdownChanged = presentParticipleIndex >= 0
   ? selectBlockFormInModel(dropdownChangeModel, seeId, presentParticipleIndex)
   : false;
+
+const validationModel = createEditorModel(adapter, definitions);
+const validationSee = validationModel.blocks.find((block) => block.id === seeId);
+const validationMary = validationModel.blocks.find((block) => block.id === maryId);
+const validationGirl = validationModel.blocks.find((block) => block.id === girlId);
+const validationJohn = validationModel.blocks.find((block) => block.id === johnId);
+const validationComplementIndex =
+  validationSee?.children.findIndex((child) => child.type === "placeholder" && child.slotKind === "complement") ?? -1;
+const validationSpecifierIndex =
+  validationSee?.children.findIndex((child) => child.type === "placeholder" && child.slotKind === "specifier") ?? -1;
+const validationPresentParticipleIndex =
+  validationSee?.forms.findIndex((form) => form.kind === "presentParticiple") ?? -1;
+
+const invalidDropdownModel = createEditorModel(adapter, definitions);
+attachBlock(invalidDropdownModel, maryId, seeId, "right");
+const invalidDropdownSee = invalidDropdownModel.blocks.find((block) => block.id === seeId);
+const invalidDropdownPresentParticipleIndex =
+  invalidDropdownSee?.forms.findIndex((form) => form.kind === "presentParticiple") ?? -1;
 
 const summary = {
   blockCount: model.blocks.length,
@@ -144,7 +167,34 @@ const summary = {
         (child.type === "placeholder" || child.type === "attachment") && child.content
           ? child.content.id
           : null,
-    })),
+      })),
+  },
+  hpsgPreviewValidationCheck: {
+    input: "validate candidate operations before committing them",
+    maryIntoSeeComplement:
+      validationSee && validationMary && validationComplementIndex >= 0
+        ? canInsertBlockIntoPlaceholder(validationModel, validationMary, validationSee, validationComplementIndex)
+        : null,
+    girlIntoSeeSpecifier:
+      validationSee && validationGirl && validationSpecifierIndex >= 0
+        ? canInsertBlockIntoPlaceholder(validationModel, validationGirl, validationSee, validationSpecifierIndex)
+        : null,
+    maryAttachJohn:
+      validationMary && validationJohn
+        ? canAttachBlock(validationModel, validationMary, validationJohn)
+        : null,
+    seeDropdownToSeeing:
+      validationSee && validationPresentParticipleIndex >= 0
+        ? canSelectBlockForm(validationModel, validationSee, validationPresentParticipleIndex)
+        : null,
+  },
+  dropdownInvalidCancelCheck: {
+    input: "with an incompatible attachment on see, preview changing see dropdown to seeing",
+    canCommit:
+      invalidDropdownSee && invalidDropdownPresentParticipleIndex >= 0
+        ? canSelectBlockForm(invalidDropdownModel, invalidDropdownSee, invalidDropdownPresentParticipleIndex)
+        : null,
+    expectedUiBehavior: "cancel dropdown change and keep previous selection",
   },
 };
 

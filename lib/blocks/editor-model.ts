@@ -1,4 +1,5 @@
 import { HpsgAdapter, type BlockSlotKind, type WordBlockDefinition } from "../grammar/hpsg-adapter.js";
+import type { FeatureStructure } from "syntax-core";
 
 export interface EditorBlockSlot {
   id: string;
@@ -9,6 +10,7 @@ export interface EditorBlockSlot {
 export interface EditorBlockForm {
   label: string;
   kind: string;
+  feature: FeatureStructure;
   slots: EditorBlockSlot[];
   headType?: string;
   verbForm?: string;
@@ -34,6 +36,7 @@ export interface EditorBlock {
 }
 
 export interface EditorModel {
+  adapter: HpsgAdapter;
   blocks: EditorBlock[];
 }
 
@@ -50,6 +53,7 @@ export const createEditorModel = (
   adapter: HpsgAdapter,
   definitions: WordBlockDefinition[],
 ): EditorModel => ({
+  adapter,
   blocks: createInitialEditorBlocks(adapter, definitions),
 });
 
@@ -88,6 +92,7 @@ export const createInitialEditorBlocks = (
       return {
         label: form.label,
         kind: form.kind,
+        feature: form.feature,
         slots,
         headType: state.headType,
         verbForm: state.verbForm,

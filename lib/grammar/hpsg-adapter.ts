@@ -178,7 +178,7 @@ export class HpsgAdapter {
   }
 
   shouldShowSpecifierSlot(feature: FeatureStructure): boolean {
-    return this.getHeadType(feature) === "verb" && this.getVerbForm(feature) === "fin";
+    return this.getHeadType(feature) === "verb" && this.getVerbForm(feature) === "fin" || this.getHeadType(feature) === "noun";
   }
 
   canAttachAsModifier(feature: FeatureStructure): boolean {

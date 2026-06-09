@@ -2,6 +2,7 @@ import {
   FeatureStructure,
   HPSG,
   type ConstantLexemeInput,
+  type IndexedHpsgInput,
   type LexemeInput,
   type TerminalEntry,
   type VerbLexemeInput,
@@ -149,6 +150,10 @@ export class HpsgAdapter {
     }
 
     return this.combineHeadModifier(head, nonHead);
+  }
+
+  combineIndexed(input: IndexedHpsgInput): FeatureStructure[] {
+    return this.grammar.combineIndexed(input);
   }
 
   getVisibleSlots(feature: FeatureStructure): BlockSlot[] {
@@ -320,4 +325,3 @@ const toIdentifier = (value: string): string =>
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "") || "lexeme";
-

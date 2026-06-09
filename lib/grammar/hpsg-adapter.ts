@@ -3,15 +3,11 @@ import {
   HPSG,
   type ConstantLexemeInput,
   type IndexedHpsgInput,
+  type IndexedHpsgPosition,
   type LexemeInput,
   type TerminalEntry,
   type VerbLexemeInput,
 } from "syntax-core";
-
-export type HpsgCombineRule =
-  | "head-complement"
-  | "head-specifier"
-  | "head-modifier";
 
 export type WordFormKind =
   | "word"
@@ -49,11 +45,6 @@ export interface WordBlockDefinition {
   forms: WordFormOption[];
 }
 
-export interface HpsgCombineCandidate {
-  rule: HpsgCombineRule;
-  category: FeatureStructure;
-}
-
 export interface BlockSlot {
   id: string;
   kind: BlockSlotKind;
@@ -63,8 +54,6 @@ export interface BlockSlot {
 
 export interface BlockGrammarState {
   feature: FeatureStructure;
-  candidates: HpsgCombineCandidate[];
-  activeCandidateIndex: number;
   slots: BlockSlot[];
   headType?: string;
   verbForm?: string;
@@ -95,13 +84,9 @@ export class HpsgAdapter {
 
   createStateFromFeature(
     feature: FeatureStructure,
-    candidates: HpsgCombineCandidate[] = [],
-    activeCandidateIndex = 0,
   ): BlockGrammarState {
     return {
       feature,
-      candidates,
-      activeCandidateIndex,
       slots: this.getVisibleSlots(feature),
       headType: this.getHeadType(feature),
       verbForm: this.getVerbForm(feature),
@@ -109,51 +94,12 @@ export class HpsgAdapter {
     };
   }
 
-  combineHeadComplement(
-    head: FeatureStructure,
-    complement: FeatureStructure,
-  ): HpsgCombineCandidate[] {
-    return this.grammar
-      .combineHeadComplement(head, complement)
-      .map((result) => ({ rule: "head-complement", category: result.category }));
-  }
-
-  combineHeadSpecifier(
-    head: FeatureStructure,
-    specifier: FeatureStructure,
-  ): HpsgCombineCandidate[] {
-    return this.grammar
-      .combineHeadSpecifier(head, specifier)
-      .map((result) => ({ rule: "head-specifier", category: result.category }));
-  }
-
-  combineHeadModifier(
-    head: FeatureStructure,
-    modifier: FeatureStructure,
-  ): HpsgCombineCandidate[] {
-    return this.grammar
-      .combineHeadModifier(head, modifier)
-      .map((result) => ({ rule: "head-modifier", category: result.category }));
-  }
-
-  combineByRule(
-    rule: HpsgCombineRule,
-    head: FeatureStructure,
-    nonHead: FeatureStructure,
-  ): HpsgCombineCandidate[] {
-    if (rule === "head-complement") {
-      return this.combineHeadComplement(head, nonHead);
-    }
-
-    if (rule === "head-specifier") {
-      return this.combineHeadSpecifier(head, nonHead);
-    }
-
-    return this.combineHeadModifier(head, nonHead);
-  }
-
   combineIndexed(input: IndexedHpsgInput): FeatureStructure[] {
     return this.grammar.combineIndexed(input);
+  }
+
+  combinePositions(positions: IndexedHpsgPosition[]): FeatureStructure[] {
+    return this.combineIndexed({ positions });
   }
 
   getVisibleSlots(feature: FeatureStructure): BlockSlot[] {

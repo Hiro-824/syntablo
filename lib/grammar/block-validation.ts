@@ -1,4 +1,4 @@
-import type { FeatureStructure } from "syntax-core";
+import type { FeatureStructure, IndexedHpsgPosition } from "syntax-core";
 import type { EditorBlock, EditorModel } from "../blocks/editor-model.js";
 import type { HpsgAdapter } from "./hpsg-adapter.js";
 
@@ -19,61 +19,80 @@ const evaluateBlockFeatureWithOverrides = (
   block: EditorBlock,
   selectedFormIndex: number,
   childOverrides: ReadonlyMap<number, EditorBlock> = new Map(),
+  extraAttachment?: {
+    side: "left" | "right";
+    features: FeatureStructure[];
+  },
 ): BlockValidationResult => {
   const selectedForm = block.forms[selectedFormIndex];
   if (!selectedForm) return { valid: false, features: [] };
 
-  const selectedPlaceholderIds = new Set(selectedForm.slots.map((slot) => slot.id));
-  const indexedChildren = block.children.filter((child) => child.type !== "attachment");
-  const headIndex = indexedChildren.findIndex((child) => child.id === "head");
-  if (headIndex < 0) return { valid: false, features: [] };
+  const leftAttachments = block.children.filter(
+    (
+      child,
+    ): child is Extract<EditorBlock["children"][number], { type: "attachment" }> =>
+      child.type === "attachment" && child.side === "left",
+  );
+  const rightAttachments = block.children.filter(
+    (
+      child,
+    ): child is Extract<EditorBlock["children"][number], { type: "attachment" }> =>
+      child.type === "attachment" && child.side === "right",
+  );
+  const positions: IndexedHpsgPosition[] = [];
 
-  const words: Record<number, FeatureStructure | FeatureStructure[]> = {
-    [headIndex + 1]: selectedForm.feature,
-  };
-
-  for (let index = 0; index < indexedChildren.length; index += 1) {
-    const child = indexedChildren[index];
-    if (!child || child.type !== "placeholder") continue;
-    if (!selectedPlaceholderIds.has(child.id)) continue;
-    const content = childOverrides.get(block.children.indexOf(child)) ?? child.content;
-    if (!content) continue;
-
-    const childResult = evaluateBlockFeature(adapter, content);
-    if (!childResult.valid) {
-      return { valid: false, features: [] };
-    }
-
-    words[index + 1] = childResult.features;
+  if (extraAttachment?.side === "left") {
+    positions.push({ role: "modifier", value: extraAttachment.features });
+  }
+  for (const attachment of leftAttachments) {
+    const result = evaluateBlockFeature(adapter, attachment.content);
+    if (!result.valid) return { valid: false, features: [] };
+    positions.push({ role: "modifier", value: result.features });
   }
 
-  let features = adapter.combineIndexed({
-    words,
-    head: headIndex + 1,
-  });
-
-  for (const child of block.children) {
-    if (child.type !== "attachment") continue;
-
-    const childResult = evaluateBlockFeature(adapter, child.content);
-    if (!childResult.valid) {
-      return { valid: false, features: [] };
-    }
-
-    features = features.flatMap((headFeature) =>
-      childResult.features.flatMap((modifierFeature) =>
-        adapter
-          .combineHeadModifier(headFeature, modifierFeature)
-          .map((candidate) => candidate.category),
-      ),
-    );
-
-    if (features.length === 0) {
-      return { valid: false, features: [] };
-    }
+  for (const slot of selectedForm.slots.filter((item) => item.side === "left")) {
+    const content = getPlaceholderContent(block, slot.id, childOverrides);
+    const result = content ? evaluateBlockFeature(adapter, content) : null;
+    if (result && !result.valid) return { valid: false, features: [] };
+    positions.push({ role: "specifier", value: result?.features });
   }
+
+  positions.push({ role: "head", value: selectedForm.feature });
+
+  for (const slot of selectedForm.slots.filter((item) => item.side === "right")) {
+    const content = getPlaceholderContent(block, slot.id, childOverrides);
+    const result = content ? evaluateBlockFeature(adapter, content) : null;
+    if (result && !result.valid) return { valid: false, features: [] };
+    positions.push({ role: "complement", value: result?.features });
+  }
+
+  for (const attachment of rightAttachments) {
+    const result = evaluateBlockFeature(adapter, attachment.content);
+    if (!result.valid) return { valid: false, features: [] };
+    positions.push({ role: "modifier", value: result.features });
+  }
+  if (extraAttachment?.side === "right") {
+    positions.push({ role: "modifier", value: extraAttachment.features });
+  }
+
+  const features = adapter.combinePositions(positions);
 
   return { valid: features.length > 0, features };
+};
+
+const getPlaceholderContent = (
+  block: EditorBlock,
+  placeholderId: string,
+  childOverrides: ReadonlyMap<number, EditorBlock>,
+): EditorBlock | null => {
+  const childIndex = block.children.findIndex(
+    (child) => child.type === "placeholder" && child.id === placeholderId,
+  );
+  if (childIndex < 0) return null;
+
+  const child = block.children[childIndex];
+  if (!child || child.type !== "placeholder") return null;
+  return childOverrides.get(childIndex) ?? child.content;
 };
 
 export const canInsertBlockIntoPlaceholder = (
@@ -97,18 +116,18 @@ export const canAttachBlock = (
   model: EditorModel,
   block: EditorBlock,
   targetParent: EditorBlock,
+  side: "left" | "right",
 ): boolean => {
-  const headResult = evaluateBlockFeature(model.adapter, targetParent);
-  const nonHeadResult = evaluateBlockFeature(model.adapter, block);
-  if (!headResult.valid || !nonHeadResult.valid) {
-    return false;
-  }
+  const modifierResult = evaluateBlockFeature(model.adapter, block);
+  if (!modifierResult.valid) return false;
 
-  return headResult.features.some((headFeature) =>
-    nonHeadResult.features.some((nonHeadFeature) =>
-      model.adapter.combineHeadModifier(headFeature, nonHeadFeature).length > 0
-    )
-  );
+  return evaluateBlockFeatureWithOverrides(
+    model.adapter,
+    targetParent,
+    targetParent.selectedFormIndex,
+    new Map(),
+    { side, features: modifierResult.features },
+  ).valid;
 };
 
 export const canSelectBlockForm = (

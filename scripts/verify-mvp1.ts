@@ -62,12 +62,68 @@ const validationSee = validationModel.blocks.find((block) => block.id === seeId)
 const validationMary = validationModel.blocks.find((block) => block.id === maryId);
 const validationGirl = validationModel.blocks.find((block) => block.id === girlId);
 const validationJohn = validationModel.blocks.find((block) => block.id === johnId);
+const validationQuickly = validationModel.blocks.find((block) => block.label === "quickly");
 const validationComplementIndex =
   validationSee?.children.findIndex((child) => child.type === "placeholder" && child.slotKind === "complement") ?? -1;
 const validationSpecifierIndex =
   validationSee?.children.findIndex((child) => child.type === "placeholder" && child.slotKind === "specifier") ?? -1;
 const validationPresentParticipleIndex =
   validationSee?.forms.findIndex((form) => form.kind === "presentParticiple") ?? -1;
+
+if (!validationSee || !validationMary || !validationGirl || !validationJohn || !validationQuickly) {
+  throw new Error("Expected validation blocks for see, mary, girl, john, and quickly.");
+}
+if (canAttachBlock(validationModel, validationMary, validationSee, "left")) {
+  throw new Error("Expected noun attachment to the left of a transitive verb to be rejected.");
+}
+if (canAttachBlock(validationModel, validationMary, validationSee, "right")) {
+  throw new Error("Expected noun attachment to the right of a transitive verb to be rejected.");
+}
+if (!canAttachBlock(validationModel, validationQuickly, validationSee, "left")) {
+  throw new Error("Expected a compatible adverb attachment on the left to succeed.");
+}
+if (!canAttachBlock(validationModel, validationQuickly, validationSee, "right")) {
+  throw new Error("Expected a compatible adverb attachment on the right to succeed.");
+}
+if (canAttachBlock(validationModel, validationMary, validationJohn, "right")) {
+  throw new Error("Expected a noun with empty MOD to be rejected as an attachment.");
+}
+
+const multipleAttachmentModel = createEditorModel(adapter, definitions);
+const multipleAttachmentSee = multipleAttachmentModel.blocks.find((block) => block.label === "see");
+const multipleAttachmentQuickly = multipleAttachmentModel.blocks.find((block) => block.label === "quickly");
+const multipleAttachmentSlowly = multipleAttachmentModel.blocks.find((block) => block.label === "slowly");
+if (!multipleAttachmentSee || !multipleAttachmentQuickly || !multipleAttachmentSlowly) {
+  throw new Error("Expected see, quickly, and slowly blocks.");
+}
+if (!attachBlock(
+  multipleAttachmentModel,
+  multipleAttachmentQuickly.id,
+  multipleAttachmentSee.id,
+  "left",
+)) {
+  throw new Error("Expected direct setup of the left adverb attachment to succeed.");
+}
+if (!canAttachBlock(
+  multipleAttachmentModel,
+  multipleAttachmentSlowly,
+  multipleAttachmentSee,
+  "right",
+)) {
+  throw new Error("Expected a second compatible attachment on the opposite side to succeed.");
+}
+if (!attachBlock(
+  multipleAttachmentModel,
+  multipleAttachmentSlowly.id,
+  multipleAttachmentSee.id,
+  "right",
+)) {
+  throw new Error("Expected direct setup of the right adverb attachment to succeed.");
+}
+const multipleAttachmentResult = evaluateBlockFeature(adapter, multipleAttachmentSee);
+if (!multipleAttachmentResult.valid || multipleAttachmentResult.features.length === 0) {
+  throw new Error("Expected evaluation with left and right adverb attachments to succeed.");
+}
 
 const invalidDropdownModel = createEditorModel(adapter, definitions);
 attachBlock(invalidDropdownModel, maryId, seeId, "right");
@@ -215,9 +271,15 @@ const summary = {
         ? canInsertBlockIntoPlaceholder(validationModel, validationGirl, validationSee, validationSpecifierIndex)
         : null,
     maryAttachJohn:
-      validationMary && validationJohn
-        ? canAttachBlock(validationModel, validationMary, validationJohn)
-        : null,
+      canAttachBlock(validationModel, validationMary, validationJohn, "right"),
+    maryAttachSeeLeft:
+      canAttachBlock(validationModel, validationMary, validationSee, "left"),
+    maryAttachSeeRight:
+      canAttachBlock(validationModel, validationMary, validationSee, "right"),
+    quicklyAttachSeeLeft:
+      canAttachBlock(validationModel, validationQuickly, validationSee, "left"),
+    quicklyAttachSeeRight:
+      canAttachBlock(validationModel, validationQuickly, validationSee, "right"),
     seeDropdownToSeeing:
       validationSee && validationPresentParticipleIndex >= 0
         ? canSelectBlockForm(validationModel, validationSee, validationPresentParticipleIndex)
@@ -237,6 +299,10 @@ const summary = {
     internalGapLengths: indexedGapResult.features.map((feature) =>
       readExpListLength(feature, ["SYN", "GAP"])
     ),
+  },
+  multipleAttachmentCheck: {
+    valid: multipleAttachmentResult.valid,
+    candidateCount: multipleAttachmentResult.features.length,
   },
 };
 

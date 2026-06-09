@@ -4,44 +4,76 @@ import type { HpsgAdapter } from "./hpsg-adapter.js";
 
 export interface BlockValidationResult {
   valid: boolean;
-  feature: FeatureStructure | null;
+  features: FeatureStructure[];
 }
 
 export const evaluateBlockFeature = (
   adapter: HpsgAdapter,
   block: EditorBlock,
   selectedFormIndex = block.selectedFormIndex,
+): BlockValidationResult =>
+  evaluateBlockFeatureWithOverrides(adapter, block, selectedFormIndex);
+
+const evaluateBlockFeatureWithOverrides = (
+  adapter: HpsgAdapter,
+  block: EditorBlock,
+  selectedFormIndex: number,
+  childOverrides: ReadonlyMap<number, EditorBlock> = new Map(),
 ): BlockValidationResult => {
   const selectedForm = block.forms[selectedFormIndex];
-  if (!selectedForm) return { valid: false, feature: null };
+  if (!selectedForm) return { valid: false, features: [] };
 
-  let currentFeature: FeatureStructure = selectedForm.feature;
   const selectedPlaceholderIds = new Set(selectedForm.slots.map((slot) => slot.id));
+  const indexedChildren = block.children.filter((child) => child.type !== "attachment");
+  const headIndex = indexedChildren.findIndex((child) => child.id === "head");
+  if (headIndex < 0) return { valid: false, features: [] };
 
-  for (const child of block.children) {
-    if (child.type !== "placeholder" && child.type !== "attachment") continue;
-    if (child.type === "placeholder" && !selectedPlaceholderIds.has(child.id)) continue;
-    if (!child.content) continue;
+  const words: Record<number, FeatureStructure | FeatureStructure[]> = {
+    [headIndex + 1]: selectedForm.feature,
+  };
 
-    const childResult = evaluateBlockFeature(adapter, child.content);
-    if (!childResult.valid || !childResult.feature) {
-      return { valid: false, feature: null };
+  for (let index = 0; index < indexedChildren.length; index += 1) {
+    const child = indexedChildren[index];
+    if (!child || child.type !== "placeholder") continue;
+    if (!selectedPlaceholderIds.has(child.id)) continue;
+    const content = childOverrides.get(block.children.indexOf(child)) ?? child.content;
+    if (!content) continue;
+
+    const childResult = evaluateBlockFeature(adapter, content);
+    if (!childResult.valid) {
+      return { valid: false, features: [] };
     }
 
-    const candidates = child.type === "attachment"
-      ? adapter.combineHeadModifier(currentFeature, childResult.feature)
-      : child.slotKind === "specifier"
-        ? adapter.combineHeadSpecifier(currentFeature, childResult.feature)
-        : adapter.combineHeadComplement(currentFeature, childResult.feature);
-
-    if (candidates.length === 0) {
-      return { valid: false, feature: null };
-    }
-
-    currentFeature = candidates[0].category;
+    words[index + 1] = childResult.features;
   }
 
-  return { valid: true, feature: currentFeature };
+  let features = adapter.combineIndexed({
+    words,
+    head: headIndex + 1,
+  });
+
+  for (const child of block.children) {
+    if (child.type !== "attachment") continue;
+
+    const childResult = evaluateBlockFeature(adapter, child.content);
+    if (!childResult.valid) {
+      return { valid: false, features: [] };
+    }
+
+    features = features.flatMap((headFeature) =>
+      childResult.features.flatMap((modifierFeature) =>
+        adapter
+          .combineHeadModifier(headFeature, modifierFeature)
+          .map((candidate) => candidate.category),
+      ),
+    );
+
+    if (features.length === 0) {
+      return { valid: false, features: [] };
+    }
+  }
+
+  return { valid: features.length > 0, features };
 };
 
 export const canInsertBlockIntoPlaceholder = (
@@ -53,17 +85,12 @@ export const canInsertBlockIntoPlaceholder = (
   const targetChild = targetParent.children[childIndex];
   if (!targetChild || targetChild.type !== "placeholder") return false;
 
-  const headResult = evaluateBlockFeature(model.adapter, targetParent);
-  const nonHeadResult = evaluateBlockFeature(model.adapter, block);
-  if (!headResult.valid || !headResult.feature || !nonHeadResult.valid || !nonHeadResult.feature) {
-    return false;
-  }
-
-  const candidates = targetChild.slotKind === "specifier"
-    ? model.adapter.combineHeadSpecifier(headResult.feature, nonHeadResult.feature)
-    : model.adapter.combineHeadComplement(headResult.feature, nonHeadResult.feature);
-
-  return candidates.length > 0;
+  return evaluateBlockFeatureWithOverrides(
+    model.adapter,
+    targetParent,
+    targetParent.selectedFormIndex,
+    new Map([[childIndex, block]]),
+  ).valid;
 };
 
 export const canAttachBlock = (
@@ -73,11 +100,15 @@ export const canAttachBlock = (
 ): boolean => {
   const headResult = evaluateBlockFeature(model.adapter, targetParent);
   const nonHeadResult = evaluateBlockFeature(model.adapter, block);
-  if (!headResult.valid || !headResult.feature || !nonHeadResult.valid || !nonHeadResult.feature) {
+  if (!headResult.valid || !nonHeadResult.valid) {
     return false;
   }
 
-  return model.adapter.combineHeadModifier(headResult.feature, nonHeadResult.feature).length > 0;
+  return headResult.features.some((headFeature) =>
+    nonHeadResult.features.some((nonHeadFeature) =>
+      model.adapter.combineHeadModifier(headFeature, nonHeadFeature).length > 0
+    )
+  );
 };
 
 export const canSelectBlockForm = (

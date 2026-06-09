@@ -9,6 +9,7 @@ import {
   canAttachBlock,
   canInsertBlockIntoPlaceholder,
   canSelectBlockForm,
+  evaluateBlockFeature,
 } from "../lib/grammar/block-validation.js";
 import { HpsgAdapter } from "../lib/grammar/hpsg-adapter.js";
 import { mvpLexemeSources } from "../lib/grammar/sample-lexemes.js";
@@ -73,6 +74,40 @@ attachBlock(invalidDropdownModel, maryId, seeId, "right");
 const invalidDropdownSee = invalidDropdownModel.blocks.find((block) => block.id === seeId);
 const invalidDropdownPresentParticipleIndex =
   invalidDropdownSee?.forms.findIndex((form) => form.kind === "presentParticiple") ?? -1;
+
+const indexedGapModel = createEditorModel(adapter, definitions);
+const indexedGapGive = indexedGapModel.blocks.find((block) => block.label === "give");
+const indexedGapMary = indexedGapModel.blocks.find((block) => block.label === "mary");
+const indexedGapSecondComplementIndex =
+  indexedGapGive?.children.findIndex(
+    (child) => child.type === "placeholder" && child.id === "complement-1",
+  ) ?? -1;
+if (!indexedGapGive || !indexedGapMary || indexedGapSecondComplementIndex < 0) {
+  throw new Error("Expected give, mary, and give's second complement placeholder.");
+}
+if (!insertBlock(
+  indexedGapModel,
+  indexedGapMary.id,
+  indexedGapGive.id,
+  indexedGapSecondComplementIndex,
+)) {
+  throw new Error("Expected mary insertion into give's second complement to succeed.");
+}
+const indexedGapResult = evaluateBlockFeature(adapter, indexedGapGive);
+if (!indexedGapResult.valid || indexedGapResult.features.length === 0) {
+  throw new Error("Expected indexed evaluation of give ___ mary to succeed.");
+}
+if (!indexedGapResult.features.every((feature) => readExpListLength(feature, ["SYN", "GAP"]) >= 1)) {
+  throw new Error("Expected give ___ mary candidates to contain the omitted first complement in GAP.");
+}
+
+const standaloneGiveResult = evaluateBlockFeature(
+  adapter,
+  createEditorModel(adapter, definitions).blocks.find((block) => block.label === "give")!,
+);
+if (standaloneGiveResult.features.length < 2) {
+  throw new Error("Expected standalone give evaluation to retain multiple edge GAP candidates.");
+}
 
 const summary = {
   blockCount: model.blocks.length,
@@ -196,6 +231,25 @@ const summary = {
         : null,
     expectedUiBehavior: "cancel dropdown change and keep previous selection",
   },
+  indexedValidationCheck: {
+    standaloneGiveCandidateCount: standaloneGiveResult.features.length,
+    internalGapCandidateCount: indexedGapResult.features.length,
+    internalGapLengths: indexedGapResult.features.map((feature) =>
+      readExpListLength(feature, ["SYN", "GAP"])
+    ),
+  },
 };
 
 console.log(JSON.stringify(summary, null, 2));
+
+function readExpListLength(feature: import("syntax-core").FeatureStructure, path: string[]): number {
+  let length = 0;
+  let current = feature.getIn(path);
+
+  while (current?.getType() === "exp-list-cons") {
+    length += 1;
+    current = current.get("REST");
+  }
+
+  return length;
+}

@@ -37,23 +37,33 @@ if (!seesForm || !seeFiniteForm) {
 const seesState = adapter.createStateFromFeature(seesForm.feature);
 const seeFiniteState = adapter.createStateFromFeature(seeFiniteForm.feature);
 
-const seesMary = adapter.combineHeadComplement(seesState.feature, maryState.feature);
-const marySees = adapter.combineHeadComplement(maryState.feature, seesState.feature);
-const completeSentence = seesMary[0]
-  ? adapter.combineHeadSpecifier(seesMary[0].category, johnState.feature)
-  : [];
-const seeMary = adapter.combineHeadComplement(seeFiniteState.feature, maryState.feature);
-const invalidAgreement = seeMary[0]
-  ? adapter.combineHeadSpecifier(seeMary[0].category, johnState.feature)
-  : [];
+const seesMary = adapter.combinePositions([
+  { role: "specifier" },
+  { role: "head", value: seesState.feature },
+  { role: "complement", value: maryState.feature },
+]);
+const marySees = adapter.combinePositions([
+  { role: "head", value: maryState.feature },
+  { role: "complement", value: seesState.feature },
+]);
+const completeSentence = adapter.combinePositions([
+  { role: "specifier", value: johnState.feature },
+  { role: "head", value: seesState.feature },
+  { role: "complement", value: maryState.feature },
+]);
+const invalidAgreement = adapter.combinePositions([
+  { role: "specifier", value: johnState.feature },
+  { role: "head", value: seeFiniteState.feature },
+  { role: "complement", value: maryState.feature },
+]);
 
 const seeSummary = {
   blockCount: blocks.length,
   seeForms: see.forms.map((form) => `${form.kind}:${form.label}`),
   seesSlots: seesState.slots.map((slot) => slot.kind),
-  seesMary: seesMary.map((candidate) => candidate.rule),
+  seesMaryCount: seesMary.length,
   marySeesCount: marySees.length,
-  completeSentence: completeSentence.map((candidate) => candidate.rule),
+  completeSentenceCount: completeSentence.length,
   invalidAgreementCount: invalidAgreement.length,
 };
 

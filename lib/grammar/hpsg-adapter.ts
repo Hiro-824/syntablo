@@ -162,9 +162,9 @@ export class HpsgAdapter {
 
   private createBlockDefinition(source: LexemeBlockSource, index: number): WordBlockDefinition {
     const spec = this.normalizeSource(source, index);
-    const forms = spec.lexemes.flatMap((lexeme, lexemeIndex) =>
+    const forms = annotateAmbiguousPronounCases(spec.lexemes.flatMap((lexeme, lexemeIndex) =>
       this.buildForms(spec.id, lexeme, lexemeIndex),
-    );
+    ));
 
     return {
       id: spec.id,
@@ -326,6 +326,38 @@ const verbLexemeTypes = new Set<LexemeInput["type"]>([
 
 const isVerbLexeme = (lexeme: LexemeInput): lexeme is VerbLexemeInput =>
   verbLexemeTypes.has(lexeme.type);
+
+const annotateAmbiguousPronounCases = (
+  forms: WordFormOption[],
+): WordFormOption[] => {
+  const pronounCasesByLabel = new Map<string, Set<"nom" | "acc">>();
+
+  for (const form of forms) {
+    if (form.lexeme.type !== "pron-lxm" || !form.lexeme.case) continue;
+
+    const cases = pronounCasesByLabel.get(form.label) ?? new Set<"nom" | "acc">();
+    cases.add(form.lexeme.case);
+    pronounCasesByLabel.set(form.label, cases);
+  }
+
+  return forms.map((form) => {
+    if (
+      form.lexeme.type !== "pron-lxm" ||
+      !form.lexeme.case ||
+      (pronounCasesByLabel.get(form.label)?.size ?? 0) < 2
+    ) {
+      return form;
+    }
+
+    return {
+      ...form,
+      optionLabel: `${form.label} (${formatCaseLabel(form.lexeme.case)})`,
+    };
+  });
+};
+
+const formatCaseLabel = (caseType: "nom" | "acc"): string =>
+  caseType === "nom" ? "nominative" : "accusative";
 
 const getLexemePrimaryLabel = (lexeme: LexemeInput): string => {
   if (lexeme.type === "cntn-lxm") {

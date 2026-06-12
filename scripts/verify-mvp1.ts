@@ -242,6 +242,22 @@ if (canInsertBlockIntoPlaceholder(
   throw new Error("Expected perfect seen to remain distinct from passive seen.");
 }
 
+const youDefinition = definitions.find((definition) => definition.label === "you");
+if (!youDefinition) {
+  throw new Error("Expected the you pronoun definition.");
+}
+const youOptionLabels = youDefinition.forms.map((form) => form.optionLabel);
+if (
+  !youOptionLabels.includes("you (nominative)") ||
+  !youOptionLabels.includes("you (accusative)")
+) {
+  throw new Error("Expected ambiguous you forms to show nominative and accusative labels.");
+}
+const iDefinition = definitions.find((definition) => definition.label === "I");
+if (!iDefinition || iDefinition.forms.some((form) => form.optionLabel.includes("(nominative)"))) {
+  throw new Error("Expected distinct I/me forms not to receive redundant case labels.");
+}
+
 const invalidDropdownModel = createEditorModel(adapter, definitions);
 attachBlock(invalidDropdownModel, maryId, seeId, "right");
 const invalidDropdownSee = invalidDropdownModel.blocks.find((block) => block.id === seeId);
@@ -280,6 +296,15 @@ const standaloneGiveResult = evaluateBlockFeature(
 );
 if (standaloneGiveResult.features.length < 2) {
   throw new Error("Expected standalone give evaluation to retain multiple edge GAP candidates.");
+}
+const giveDefinition = definitions.find((definition) => definition.label === "give");
+if (
+  !giveDefinition ||
+  giveDefinition.lexemes.length !== 2 ||
+  !giveDefinition.lexemes.some((lexeme) => lexeme.type === "dtv-lxm") ||
+  !giveDefinition.lexemes.some((lexeme) => lexeme.type === "ptv-lxm")
+) {
+  throw new Error("Expected give to provide both ditransitive and to-phrase variants.");
 }
 
 const summary = {
@@ -416,6 +441,7 @@ const summary = {
     internalGapLengths: indexedGapResult.features.map((feature) =>
       readExpListLength(feature, ["SYN", "GAP"])
     ),
+    giveLexemeTypes: giveDefinition.lexemes.map((lexeme) => lexeme.type),
   },
   multipleAttachmentCheck: {
     valid: multipleAttachmentResult.valid,
@@ -430,6 +456,10 @@ const summary = {
     passiveSentenceValid: passiveResult.valid,
     perfectRejectedAsBeComplement: true,
     nestedPerfectFormChangeRejected: true,
+  },
+  pronounCaseLabelCheck: {
+    youOptionLabels,
+    distinctPronounFormsRemainPlain: iDefinition.forms.map((form) => form.optionLabel),
   },
 };
 

@@ -12,7 +12,7 @@ export const mvpLexemeSources = [
     presentParticiple: "being",
     pastParticiple: "been",
   },
-  { type: "det-lxm", form: "a", count: "+" },
+  { type: "det-lxm", form: "a", count: "+", num: "sg", },
   { type: "det-lxm", form: "the" },
   { type: "pn-lxm", form: "john", reln: "named John" },
   { type: "pn-lxm", form: "mary", reln: "named Mary" },

@@ -5,6 +5,7 @@ export interface EditorBlockSlot {
   id: string;
   kind: BlockSlotKind;
   side: "left" | "right";
+  expectedHeadType?: string;
 }
 
 export interface EditorBlockForm {
@@ -20,7 +21,14 @@ export interface EditorBlockForm {
 export type EditorBlockChild =
   | { id: "head"; type: "dropdown"; content: string[]; optionLabels: string[]; selected: number }
   | { id: "head"; type: "text"; content: string }
-  | { id: string; type: "placeholder"; slotKind: BlockSlotKind; side: "left" | "right"; content: EditorBlock | null }
+  | {
+    id: string;
+    type: "placeholder";
+    slotKind: BlockSlotKind;
+    side: "left" | "right";
+    expectedHeadType?: string;
+    content: EditorBlock | null;
+  }
   | { id: string; type: "attachment"; side: "left" | "right"; content: EditorBlock };
 
 export interface EditorBlock {
@@ -110,11 +118,13 @@ export const createEditorBlock = (
         id: slot.id,
         kind: slot.kind,
         side: "left" as const,
+        expectedHeadType: adapter.getHeadType(slot.expected),
       })),
       ...rightSlots.map((slot) => ({
         id: slot.id,
         kind: slot.kind,
         side: "right" as const,
+        expectedHeadType: adapter.getHeadType(slot.expected),
       })),
     ];
 
@@ -191,6 +201,7 @@ export const applySelectedForm = (block: EditorBlock) => {
       type: "placeholder",
       slotKind: slot.kind,
       side: slot.side,
+      expectedHeadType: slot.expectedHeadType,
       content: previousPlaceholderContents.get(slot.id) ?? null,
     });
   }
@@ -217,6 +228,7 @@ export const applySelectedForm = (block: EditorBlock) => {
       type: "placeholder",
       slotKind: slot.kind,
       side: slot.side,
+      expectedHeadType: slot.expectedHeadType,
       content: previousPlaceholderContents.get(slot.id) ?? null,
     });
   }

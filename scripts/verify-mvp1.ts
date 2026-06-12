@@ -306,6 +306,29 @@ if (
 ) {
   throw new Error("Expected give to provide both ditransitive and to-phrase variants.");
 }
+const slotShapeModel = createEditorModel(adapter, definitions);
+const slotShapeGirl = getBlockByLabel(slotShapeModel, "girl");
+const slotShapeSee = getBlockByLabel(slotShapeModel, "see");
+const slotShapeGo = getBlockByLabel(slotShapeModel, "go");
+const girlSpecifier = slotShapeGirl.children.find(
+  (child) => child.type === "placeholder" && child.slotKind === "specifier",
+);
+const seeComplement = slotShapeSee.children.find(
+  (child) => child.type === "placeholder" && child.slotKind === "complement",
+);
+const goComplement = slotShapeGo.children.find(
+  (child) => child.type === "placeholder" && child.slotKind === "complement",
+);
+if (
+  girlSpecifier?.type !== "placeholder" ||
+  girlSpecifier.expectedHeadType !== "det" ||
+  seeComplement?.type !== "placeholder" ||
+  seeComplement.expectedHeadType !== "noun" ||
+  goComplement?.type !== "placeholder" ||
+  goComplement.expectedHeadType !== "prep"
+) {
+  throw new Error("Expected editor slots to retain their required head types for silhouettes.");
+}
 
 const summary = {
   blockCount: model.blocks.length,
@@ -460,6 +483,11 @@ const summary = {
   pronounCaseLabelCheck: {
     youOptionLabels,
     distinctPronounFormsRemainPlain: iDefinition.forms.map((form) => form.optionLabel),
+  },
+  slotShapeCheck: {
+    nounSpecifier: girlSpecifier.expectedHeadType,
+    verbComplement: seeComplement.expectedHeadType,
+    prepositionalComplement: goComplement.expectedHeadType,
   },
 };
 

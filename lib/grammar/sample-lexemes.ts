@@ -1,6 +1,17 @@
 import type { LexemeBlockSource } from "./hpsg-adapter.js";
 
 export const mvpLexemeSources = [
+  {
+    type: "be-lxm",
+    base: "be",
+    firstSingular: "am",
+    thirdSingular: "is",
+    nonThirdSingular: "are",
+    pastSingular: "was",
+    pastPlural: "were",
+    presentParticiple: "being",
+    pastParticiple: "been",
+  },
   { type: "det-lxm", form: "a", count: "+" },
   { type: "det-lxm", form: "the" },
   { type: "pn-lxm", form: "john", reln: "named John" },

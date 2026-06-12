@@ -1,6 +1,7 @@
 import {
   FeatureStructure,
   HPSG,
+  type BeLexemeInput,
   type ConstantLexemeInput,
   type IndexedHpsgInput,
   type IndexedHpsgPosition,
@@ -14,11 +15,16 @@ export type WordFormKind =
   | "singular"
   | "plural"
   | "base"
+  | "firstSingular"
   | "nonThirdSingular"
   | "thirdSingular"
+  | "pastFirstSingular"
+  | "pastThirdSingular"
+  | "pastNonFirstSingular"
   | "presentParticiple"
   | "pastTense"
-  | "pastParticiple";
+  | "pastParticiple"
+  | "passive";
 
 export type BlockSlotKind = "complement" | "specifier";
 
@@ -33,6 +39,7 @@ export interface LexemeBlockSpec {
 export interface WordFormOption {
   id: string;
   label: string;
+  optionLabel: string;
   kind: WordFormKind;
   feature: FeatureStructure;
   lexeme: LexemeInput;
@@ -189,9 +196,11 @@ export class HpsgAdapter {
       kind: WordFormKind,
       label: string,
       feature: FeatureStructure,
+      optionLabel = label,
     ): WordFormOption => ({
       id: `${blockId}-${lexemeIndex}-${kind}`,
       label,
+      optionLabel,
       kind,
       feature,
       lexeme,
@@ -210,20 +219,85 @@ export class HpsgAdapter {
       return [makeOption("singular", lexeme.form, words.singular)];
     }
 
+    if (lexeme.type === "be-lxm") {
+      return this.buildBeForms(blockId, lexeme, lexemeIndex);
+    }
+
     if (isVerbLexeme(lexeme)) {
       const words = this.grammar.buildVerbWords(lexeme);
-      return [
+      const forms = [
         makeOption("base", lexeme.base, words.base),
         makeOption("nonThirdSingular", lexeme.base, words.nonThirdSingular),
         makeOption("thirdSingular", lexeme.thirdSingular, words.thirdSingular),
         makeOption("presentParticiple", lexeme.presentParticiple, words.presentParticiple),
         makeOption("pastTense", lexeme.pastTense, words.pastTense),
-        makeOption("pastParticiple", lexeme.pastParticiple, words.pastParticiple),
+        makeOption(
+          "pastParticiple",
+          lexeme.pastParticiple,
+          words.pastParticiple,
+          words.passive
+            ? `${lexeme.pastParticiple} (perfect)`
+            : lexeme.pastParticiple,
+        ),
       ];
+      if (words.passive) {
+        forms.push(
+          makeOption(
+            "passive",
+            lexeme.pastParticiple,
+            words.passive,
+            `${lexeme.pastParticiple} (passive)`,
+          ),
+        );
+      }
+      return forms;
     }
 
     const words = this.grammar.buildConstantWords(lexeme as ConstantLexemeInput);
     return [makeOption("word", lexeme.form, words.word)];
+  }
+
+  private buildBeForms(
+    blockId: string,
+    lexeme: BeLexemeInput,
+    lexemeIndex: number,
+  ): WordFormOption[] {
+    const words = this.grammar.buildBeWords(lexeme);
+    const makeOption = (
+      kind: WordFormKind,
+      label: string,
+      feature: FeatureStructure,
+      optionLabel = label,
+    ): WordFormOption => ({
+      id: `${blockId}-${lexemeIndex}-${kind}`,
+      label,
+      optionLabel,
+      kind,
+      feature,
+      lexeme,
+    });
+
+    return [
+      makeOption("base", lexeme.base, words.base),
+      makeOption("firstSingular", lexeme.firstSingular, words.firstSingular),
+      makeOption("thirdSingular", lexeme.thirdSingular, words.thirdSingular),
+      makeOption("nonThirdSingular", lexeme.nonThirdSingular, words.nonThirdSingular),
+      makeOption(
+        "pastFirstSingular",
+        lexeme.pastSingular,
+        words.pastFirstSingular,
+        `${lexeme.pastSingular} (1st singular)`,
+      ),
+      makeOption(
+        "pastThirdSingular",
+        lexeme.pastSingular,
+        words.pastThirdSingular,
+        `${lexeme.pastSingular} (3rd singular)`,
+      ),
+      makeOption("pastNonFirstSingular", lexeme.pastPlural, words.pastNonFirstSingular),
+      makeOption("presentParticiple", lexeme.presentParticiple, words.presentParticiple),
+      makeOption("pastParticiple", lexeme.pastParticiple, words.pastParticiple),
+    ];
   }
 
   private readExpList(feature: FeatureStructure, path: FeaturePath): FeatureStructure[] {
@@ -256,6 +330,10 @@ const isVerbLexeme = (lexeme: LexemeInput): lexeme is VerbLexemeInput =>
 const getLexemePrimaryLabel = (lexeme: LexemeInput): string => {
   if (lexeme.type === "cntn-lxm") {
     return lexeme.singular;
+  }
+
+  if (lexeme.type === "be-lxm") {
+    return lexeme.base;
   }
 
   if (isVerbLexeme(lexeme)) {

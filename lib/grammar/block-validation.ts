@@ -23,8 +23,10 @@ const evaluateBlockFeatureWithOverrides = (
     side: "left" | "right";
     features: FeatureStructure[];
   },
+  formOverrides: ReadonlyMap<string, number> = new Map(),
 ): BlockValidationResult => {
-  const selectedForm = block.forms[selectedFormIndex];
+  const effectiveFormIndex = formOverrides.get(block.id) ?? selectedFormIndex;
+  const selectedForm = block.forms[effectiveFormIndex];
   if (!selectedForm) return { valid: false, features: [] };
 
   const leftAttachments = block.children.filter(
@@ -45,14 +47,30 @@ const evaluateBlockFeatureWithOverrides = (
     positions.push({ role: "modifier", value: extraAttachment.features });
   }
   for (const attachment of leftAttachments) {
-    const result = evaluateBlockFeature(adapter, attachment.content);
+    const result = evaluateBlockFeatureWithOverrides(
+      adapter,
+      attachment.content,
+      attachment.content.selectedFormIndex,
+      new Map(),
+      undefined,
+      formOverrides,
+    );
     if (!result.valid) return { valid: false, features: [] };
     positions.push({ role: "modifier", value: result.features });
   }
 
   for (const slot of selectedForm.slots.filter((item) => item.side === "left")) {
     const content = getPlaceholderContent(block, slot.id, childOverrides);
-    const result = content ? evaluateBlockFeature(adapter, content) : null;
+    const result = content
+      ? evaluateBlockFeatureWithOverrides(
+        adapter,
+        content,
+        content.selectedFormIndex,
+        new Map(),
+        undefined,
+        formOverrides,
+      )
+      : null;
     if (result && !result.valid) return { valid: false, features: [] };
     positions.push({ role: "specifier", value: result?.features });
   }
@@ -61,13 +79,29 @@ const evaluateBlockFeatureWithOverrides = (
 
   for (const slot of selectedForm.slots.filter((item) => item.side === "right")) {
     const content = getPlaceholderContent(block, slot.id, childOverrides);
-    const result = content ? evaluateBlockFeature(adapter, content) : null;
+    const result = content
+      ? evaluateBlockFeatureWithOverrides(
+        adapter,
+        content,
+        content.selectedFormIndex,
+        new Map(),
+        undefined,
+        formOverrides,
+      )
+      : null;
     if (result && !result.valid) return { valid: false, features: [] };
     positions.push({ role: "complement", value: result?.features });
   }
 
   for (const attachment of rightAttachments) {
-    const result = evaluateBlockFeature(adapter, attachment.content);
+    const result = evaluateBlockFeatureWithOverrides(
+      adapter,
+      attachment.content,
+      attachment.content.selectedFormIndex,
+      new Map(),
+      undefined,
+      formOverrides,
+    );
     if (!result.valid) return { valid: false, features: [] };
     positions.push({ role: "modifier", value: result.features });
   }
@@ -134,4 +168,33 @@ export const canSelectBlockForm = (
   model: EditorModel,
   block: EditorBlock,
   formIndex: number,
-): boolean => evaluateBlockFeature(model.adapter, block, formIndex).valid;
+): boolean => {
+  const rootBlock = findRootBlock(model, block.id) ?? block;
+
+  return evaluateBlockFeatureWithOverrides(
+    model.adapter,
+    rootBlock,
+    rootBlock.selectedFormIndex,
+    new Map(),
+    undefined,
+    new Map([[block.id, formIndex]]),
+  ).valid;
+};
+
+const findRootBlock = (
+  model: EditorModel,
+  blockId: string,
+): EditorBlock | null => {
+  const containsBlock = (block: EditorBlock): boolean => {
+    if (block.id === blockId) return true;
+
+    return block.children.some(
+      (child) =>
+        (child.type === "placeholder" || child.type === "attachment") &&
+        child.content !== null &&
+        containsBlock(child.content),
+    );
+  };
+
+  return model.blocks.find(containsBlock) ?? null;
+};

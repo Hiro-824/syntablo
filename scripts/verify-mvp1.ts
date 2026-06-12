@@ -125,6 +125,123 @@ if (!multipleAttachmentResult.valid || multipleAttachmentResult.features.length 
   throw new Error("Expected evaluation with left and right adverb attachments to succeed.");
 }
 
+const bePredicateModel = createEditorModel(adapter, definitions);
+const bePredicateBe = getBlockByLabel(bePredicateModel, "be");
+const bePredicateJohn = getBlockByLabel(bePredicateModel, "john");
+const bePredicateBig = getBlockByLabel(bePredicateModel, "big");
+const beThirdSingularIndex = getFormIndex(bePredicateBe, "thirdSingular");
+selectBlockFormInModel(bePredicateModel, bePredicateBe.id, beThirdSingularIndex);
+const bePredicateSpecifierIndex = getPlaceholderIndex(bePredicateBe, "specifier");
+const bePredicateComplementIndex = getPlaceholderIndex(bePredicateBe, "complement");
+if (!canInsertBlockIntoPlaceholder(
+  bePredicateModel,
+  bePredicateBig,
+  bePredicateBe,
+  bePredicateComplementIndex,
+)) {
+  throw new Error("Expected a predicative adjective to fit be's complement.");
+}
+insertBlock(
+  bePredicateModel,
+  bePredicateBig.id,
+  bePredicateBe.id,
+  bePredicateComplementIndex,
+);
+if (!canInsertBlockIntoPlaceholder(
+  bePredicateModel,
+  bePredicateJohn,
+  bePredicateBe,
+  bePredicateSpecifierIndex,
+)) {
+  throw new Error("Expected john to agree with third-singular is.");
+}
+insertBlock(
+  bePredicateModel,
+  bePredicateJohn.id,
+  bePredicateBe.id,
+  bePredicateSpecifierIndex,
+);
+const bePredicateResult = evaluateBlockFeature(adapter, bePredicateBe);
+if (!bePredicateResult.valid) {
+  throw new Error("Expected john is big to be valid.");
+}
+
+const invalidBeAgreementModel = createEditorModel(adapter, definitions);
+const invalidBe = getBlockByLabel(invalidBeAgreementModel, "be");
+const invalidBeI = getBlockByLabel(invalidBeAgreementModel, "I");
+const invalidBeBig = getBlockByLabel(invalidBeAgreementModel, "big");
+selectBlockFormInModel(
+  invalidBeAgreementModel,
+  invalidBe.id,
+  getFormIndex(invalidBe, "thirdSingular"),
+);
+insertBlock(
+  invalidBeAgreementModel,
+  invalidBeBig.id,
+  invalidBe.id,
+  getPlaceholderIndex(invalidBe, "complement"),
+);
+if (canInsertBlockIntoPlaceholder(
+  invalidBeAgreementModel,
+  invalidBeI,
+  invalidBe,
+  getPlaceholderIndex(invalidBe, "specifier"),
+)) {
+  throw new Error("Expected I is big to be rejected by agreement.");
+}
+
+const passiveModel = createEditorModel(adapter, definitions);
+const passiveBe = getBlockByLabel(passiveModel, "be");
+const passiveMary = getBlockByLabel(passiveModel, "mary");
+const passiveSee = getBlockByLabel(passiveModel, "see");
+selectBlockFormInModel(passiveModel, passiveBe.id, getFormIndex(passiveBe, "thirdSingular"));
+selectBlockFormInModel(passiveModel, passiveSee.id, getFormIndex(passiveSee, "passive"));
+const passiveComplementIndex = getPlaceholderIndex(passiveBe, "complement");
+if (!canInsertBlockIntoPlaceholder(
+  passiveModel,
+  passiveSee,
+  passiveBe,
+  passiveComplementIndex,
+)) {
+  throw new Error("Expected passive seen to fit be's predicative complement.");
+}
+insertBlock(passiveModel, passiveSee.id, passiveBe.id, passiveComplementIndex);
+const passiveSpecifierIndex = getPlaceholderIndex(passiveBe, "specifier");
+if (!canInsertBlockIntoPlaceholder(
+  passiveModel,
+  passiveMary,
+  passiveBe,
+  passiveSpecifierIndex,
+)) {
+  throw new Error("Expected mary to fill the subject of mary is seen.");
+}
+insertBlock(passiveModel, passiveMary.id, passiveBe.id, passiveSpecifierIndex);
+const passiveResult = evaluateBlockFeature(adapter, passiveBe);
+if (!passiveResult.valid) {
+  throw new Error("Expected mary is seen to be valid.");
+}
+if (canSelectBlockForm(
+  passiveModel,
+  passiveSee,
+  getFormIndex(passiveSee, "pastParticiple"),
+)) {
+  throw new Error("Expected a nested passive seen to reject switching to perfect seen.");
+}
+
+const perfectModel = createEditorModel(adapter, definitions);
+const perfectBe = getBlockByLabel(perfectModel, "be");
+const perfectSee = getBlockByLabel(perfectModel, "see");
+selectBlockFormInModel(perfectModel, perfectBe.id, getFormIndex(perfectBe, "thirdSingular"));
+selectBlockFormInModel(perfectModel, perfectSee.id, getFormIndex(perfectSee, "pastParticiple"));
+if (canInsertBlockIntoPlaceholder(
+  perfectModel,
+  perfectSee,
+  perfectBe,
+  getPlaceholderIndex(perfectBe, "complement"),
+)) {
+  throw new Error("Expected perfect seen to remain distinct from passive seen.");
+}
+
 const invalidDropdownModel = createEditorModel(adapter, definitions);
 attachBlock(invalidDropdownModel, maryId, seeId, "right");
 const invalidDropdownSee = invalidDropdownModel.blocks.find((block) => block.id === seeId);
@@ -304,6 +421,16 @@ const summary = {
     valid: multipleAttachmentResult.valid,
     candidateCount: multipleAttachmentResult.features.length,
   },
+  beAndPassiveCheck: {
+    beForms: bePredicateBe.forms.map((form) => `${form.kind}:${form.optionLabel}`),
+    predicateSentenceValid: bePredicateResult.valid,
+    invalidAgreementRejected: true,
+    passiveOptionLabel:
+      passiveSee.forms[getFormIndex(passiveSee, "passive")]?.optionLabel ?? null,
+    passiveSentenceValid: passiveResult.valid,
+    perfectRejectedAsBeComplement: true,
+    nestedPerfectFormChangeRejected: true,
+  },
 };
 
 console.log(JSON.stringify(summary, null, 2));
@@ -318,4 +445,39 @@ function readExpListLength(feature: import("syntax-core").FeatureStructure, path
   }
 
   return length;
+}
+
+function getBlockByLabel(
+  model: ReturnType<typeof createEditorModel>,
+  label: string,
+) {
+  const block = model.blocks.find((candidate) => candidate.label === label);
+  if (!block) {
+    throw new Error(`Expected block '${label}'.`);
+  }
+  return block;
+}
+
+function getFormIndex(
+  block: ReturnType<typeof getBlockByLabel>,
+  kind: string,
+): number {
+  const index = block.forms.findIndex((form) => form.kind === kind);
+  if (index < 0) {
+    throw new Error(`Expected form '${kind}' on block '${block.label}'.`);
+  }
+  return index;
+}
+
+function getPlaceholderIndex(
+  block: ReturnType<typeof getBlockByLabel>,
+  slotKind: "specifier" | "complement",
+): number {
+  const index = block.children.findIndex(
+    (child) => child.type === "placeholder" && child.slotKind === slotKind,
+  );
+  if (index < 0) {
+    throw new Error(`Expected ${slotKind} placeholder on block '${block.label}'.`);
+  }
+  return index;
 }

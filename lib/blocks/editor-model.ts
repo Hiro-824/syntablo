@@ -9,6 +9,7 @@ export interface EditorBlockSlot {
 
 export interface EditorBlockForm {
   label: string;
+  optionLabel: string;
   kind: string;
   feature: FeatureStructure;
   slots: EditorBlockSlot[];
@@ -17,7 +18,7 @@ export interface EditorBlockForm {
 }
 
 export type EditorBlockChild =
-  | { id: "head"; type: "dropdown"; content: string[]; selected: number }
+  | { id: "head"; type: "dropdown"; content: string[]; optionLabels: string[]; selected: number }
   | { id: "head"; type: "text"; content: string }
   | { id: string; type: "placeholder"; slotKind: BlockSlotKind; side: "left" | "right"; content: EditorBlock | null }
   | { id: string; type: "attachment"; side: "left" | "right"; content: EditorBlock };
@@ -119,6 +120,7 @@ export const createEditorBlock = (
 
     return {
       label: form.label,
+      optionLabel: form.optionLabel,
       kind: form.kind,
       feature: form.feature,
       slots,
@@ -198,6 +200,7 @@ export const applySelectedForm = (block: EditorBlock) => {
       id: "head",
       type: "dropdown",
       content: block.forms.map((form) => form.label),
+      optionLabels: block.forms.map((form) => form.optionLabel),
       selected: block.selectedFormIndex,
     });
   } else {
